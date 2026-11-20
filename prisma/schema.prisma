@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum SalaryType {
+  MONTHLY
+  HOURLY
+}
+
+model User {
+  id           String     @id @default(cuid())
+  empCode      String     @unique
+  name         String
+  email        String     @unique
+  password     String
+  role         Role       @default(EMPLOYEE)
+  phone        String?
+  designation  String?
+  department   String?
+  salaryType   SalaryType @default(MONTHLY)
+  salary       Float      @default(0) // monthly salary OR hourly rate
+  joinDate     DateTime   @default(now())
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  attendance   Attendance[]
+  tasks        Task[]     @relation("assignedTo")
+  createdTasks Task[]     @relation("createdBy")
+  leaves       Leave[]
+  adjustments  Adjustment[]
+}
+
+model Settings {
+  id               Int     @id @default(1)
+  companyName      String  @default("My Company")
+  officeStart      String  @default("09:30") // HH:mm
+  officeEnd        String  @default("18:30")
+  graceMinutes     Int     @default(15)
+  halfDayHours     Float   @default(4)
+  workingDays      String  @default("1,2,3,4,5,6") // 0=Sun..6=Sat
+  officeLat        Float?
+  officeLng        Float?
+  geofenceRadius   Int     @default(200) // metres
+  enforceGeofence  Boolean @default(false)
+  requireSelfie    Boolean @default(true)
+  payrollMode      String  @default("HOURS") // HOURS | DAYS
+  casualLeavePerYear Int   @default(12)
+  sickLeavePerYear   Int   @default(6)
+  paidLeavePerYear   Int   @default(0)
+}
+
+model Attendance {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            String    // YYYY-MM-DD in office timezone
+  checkIn         DateTime
+  checkOut        DateTime?
+  checkInSelfie   String?  
+  checkOutSelfie  String?  
+  checkInLat      Float?
+  checkInLng      Float?
+  checkInAddress  String?
+  checkInDistance Int?
+  checkOutLat     Float?
+  checkOutLng     Float?
+  checkOutAddress String?
+  isLate          Boolean   @default(false)
+  lateMinutes     Int       @default(0)
+  todayPlan       String?
+  workSummary     String?
+  adminNote       String?
+  createdAt       DateTime  @default(now())
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model Task {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  priority     String    @default("MEDIUM") // LOW | MEDIUM | HIGH
+  status       String    @default("PENDING") // PENDING | IN_PROGRESS | DONE
+  dueDate      String?   // YYYY-MM-DD
+  date         String    // date created (office tz)
+  source       String    @default("ADMIN") // ADMIN | SELF
+  employeeNote String?
+  assignedToId String
+  assignedTo   User      @relation("assignedTo", fields: [assignedToId], references: [id], onDelete: Cascade)
+  createdById  String?
+  createdBy    User?     @relation("createdBy", fields: [createdById], references: [id], onDelete: SetNull)
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([assignedToId, date])
+}
+
+model Leave {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromDate  String
+  toDate    String
+  type      String   @default("CASUAL") // CASUAL | SICK | PAID | UNPAID
+  reason    String?
+  status    String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote String?
+  createdAt DateTime @default(now())
+}
+
+model Holiday {
+  id   String @id @default(cuid())
+  date String @unique
+  name String
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model Adjustment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month     String   // YYYY-MM
+  type      String   // BONUS | DEDUCTION | ADVANCE
+  amount    Float
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([month])
+}
